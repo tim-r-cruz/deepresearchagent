@@ -22,3 +22,6 @@ uploads/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code local settings (may contain tokens)
+.claude/
