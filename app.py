@@ -30,8 +30,41 @@ UPLOAD_DIR = ROOT / "uploads"
 OUTPUT_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-# ── In-memory job store ──────────────────────────────────────────────────────
+# ── Job store (in-memory + file-backed) ──────────────────────────────────────
 jobs: Dict[str, Dict[str, Any]] = {}
+
+
+def _job_file(job_id: str) -> pathlib.Path:
+    return OUTPUT_DIR / job_id / "job.json"
+
+
+def _persist_job(job_id: str) -> None:
+    """Write current job state to disk so restarts don't lose it."""
+    job_dir = OUTPUT_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    _job_file(job_id).write_text(json.dumps(jobs[job_id]))
+
+
+def _load_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Read job state from disk (used when not in memory after a restart)."""
+    f = _job_file(job_id)
+    if f.exists():
+        try:
+            return json.loads(f.read_text())
+        except Exception:
+            pass
+    return None
+
+
+def _get_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Return job from memory, falling back to disk."""
+    if job_id in jobs:
+        return jobs[job_id]
+    data = _load_job(job_id)
+    if data:
+        jobs[job_id] = data  # re-hydrate memory cache
+    return data
+
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Research Studio")
@@ -96,6 +129,7 @@ async def generate(
         "filename": None,
         "error": None,
     }
+    _persist_job(job_id)
 
     background_tasks.add_task(
         _run_generation,
@@ -112,9 +146,9 @@ async def generate(
 
 @app.get("/api/status/{job_id}")
 async def get_status(job_id: str):
-    if job_id not in jobs:
+    job = _get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
-    job = jobs[job_id]
     return {
         "status": job["status"],
         "topic": job.get("topic"),
@@ -125,9 +159,9 @@ async def get_status(job_id: str):
 
 @app.get("/api/download/{job_id}")
 async def download(job_id: str):
-    if job_id not in jobs:
+    job = _get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
-    job = jobs[job_id]
     if job["status"] != "complete":
         raise HTTPException(status_code=400, detail="Job not yet complete.")
     output_path = pathlib.Path(job["output_path"])
@@ -161,6 +195,7 @@ async def _run_generation(
     upload_path: pathlib.Path,
 ):
     jobs[job_id]["status"] = "running"
+    _persist_job(job_id)
     try:
         brief = await asyncio.to_thread(
             _sync_research, topic, guiding_questions, upload_path
@@ -171,9 +206,11 @@ async def _run_generation(
         jobs[job_id]["output_path"] = str(output_path)
         jobs[job_id]["filename"]    = filename
         jobs[job_id]["status"]      = "complete"
+        _persist_job(job_id)
     except Exception as exc:
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"]  = str(exc)
+        _persist_job(job_id)
 
 
 def _sync_research(topic, guiding_questions, upload_path):
