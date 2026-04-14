@@ -1,78 +1,109 @@
-# Deep Research Assistant
+# Research Studio
 
-An intelligent tool that researches any topic and generates comprehensive, evidence-based undergraduate course slide decks (30-40 slides).
+A web application for deep research and knowledge artifact generation. Define a topic, provide guiding questions, and generate a polished PowerPoint presentation or HTML research document — powered by Claude AI.
 
 ## Features
 
-- **CLI-driven**: Pass any topic as a command-line argument
-- **Multi-source research**: Aggregates Wikipedia, educational sources, and local materials
-- **Comprehensive structure**: 30-40 slides covering foundations, applications, ethics, and pitfalls
-- **Citation confidence**: Shows reliability scores for all referenced material
-- **Local enrichment**: Optionally augment with your own course materials
+- **LLM-powered research**: Claude generates substantive, expert-level content for every topic
+- **Guiding questions**: Ask specific questions and receive detailed, multi-paragraph answers — not just restatements
+- **Two output formats**: PowerPoint slides (`.pptx`) or a structured HTML research document
+- **Context file upload**: Enrich research with your own PDF, DOCX, TXT, or Markdown files
+- **Notion-inspired UI**: Clean, minimal interface with a familiar aesthetic
+- **Async generation**: Jobs run in the background with live status polling
 
-## Quick Start
+## Setup
 
-```bash
-python -m src.agent "Advanced Machine Learning"
-```
-
-## Usage Examples
+### 1. Install dependencies
 
 ```bash
-# Basic topic research
-python -m src.agent "Predictive Analytics"
-
-# With local materials for enrichment
-python -m src.agent "Neural Networks" --content-dir ./my_notes
-
-# Custom output location and course title
-python -m src.agent "Deep Learning" \
-  --output-dir ./decks \
-  --course-title "Applied ML for Undergraduates" \
-  --author "Prof. Smith"
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Arguments
+### 2. Configure your API key
 
-- `topic` (required): The subject to research and build a course on
-- `--content-dir`: Optional directory with local course materials for enrichment
-- `--output-dir`: Where to save the slide deck (default: `./output`)
-- `--course-title`: Title for the generated course (default: "Undergraduate Course")
-- `--author`: Instructor name (default: "Research Assistant")
+Create a `.env` file in the project root:
 
-## Generated Decks
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-Output decks contain approximately 30-40 slides organized in five parts:
+Get a key at [console.anthropic.com](https://console.anthropic.com).
 
-1. **Foundations** (8-10 slides): Core concepts, definitions, history, and theoretical frameworks
-2. **Applications** (8-10 slides): Real-world use cases and three detailed case studies
-3. **Ethics & Implications** (6-8 slides): Social implications, fairness, accountability, and responsibility
-4. **Pitfalls & Misconceptions** (6-8 slides): Common misconceptions, failure modes, and robust system design
-5. **Discussion & Wrap-up** (4-6 slides): Key takeaways, reflection, and next steps
-6. **References**: Scored sources with confidence metrics
+### 3. Run the app
 
-Each deck is specifically designed for undergraduate learners with emphasis on practical understanding and ethical reasoning.
+```bash
+uvicorn app:app --reload
+```
 
-## Source Materials
+Open [http://localhost:8000](http://localhost:8000).
 
-The agent accepts optional local supplementary materials in:
+## How It Works
 
-- `.txt` - plain text files
-- `.md`, `.markdown` - Markdown files
-- `.docx` - Word documents
-- `.pdf` - PDF files
+1. **Enter a topic** and optional author name
+2. **Add guiding questions** to direct the research (e.g. "What are the ethical implications?")
+3. **Upload context files** (optional) — PDFs, Word docs, or plain text to enrich the output
+4. **Choose an output format** — PowerPoint slides or an HTML research document
+5. **Generate** — the app researches the topic, calls Claude, and builds the artifact
 
-Place these in a directory and pass `--content-dir ./your_directory` to enrich the research output.
+### Research pipeline
 
-## Research Process
+1. Fetches background context from Wikipedia and DuckDuckGo
+2. Combines web context + uploaded files into a prompt for Claude
+3. Claude generates a structured research brief:
+   - **Guiding question responses** — thorough expert answers to each of your questions
+   - Summary, talking points, learning objectives, prerequisites
+   - Curriculum modules, case studies, lab exercises, misconceptions
+4. The brief is rendered into a downloadable PowerPoint or HTML document
 
-When you run the agent:
+If no API key is set, the app falls back to template-based content generation.
 
-1. Conducts multi-source research using Wikipedia and educational APIs
-2. Scores sources by reliability and relevance
-3. Extracts local course content if provided
-4. Generates 30-40 slides with structured learning progression
-5. Includes discussion prompts for classroom engagement
-6. Provides citation confidence metrics
+## Output Formats
 
-If online sources are temporarily unavailable, the tool falls back to local material to ensure quality output.
+### PowerPoint Slides
+- Notion-inspired aesthetic: clean white layouts, Calibri Light headings, accent blue dividers
+- Opens with a **Research Findings** section — one slide per guiding question with the full answer
+- Sections for core concepts, key insights, historical foundations, applications, case studies, ethics, pitfalls, labs, and discussion
+- Speaker notes on every slide
+
+### HTML Research Document
+- Self-contained single file, no external dependencies
+- **Research Findings** section renders each guiding question with a full prose response
+- Summary displayed as proper paragraphs, module grid, callout blocks, and scored citations
+
+## Supported File Types (Context Upload)
+
+| Format | Extension |
+|--------|-----------|
+| PDF | `.pdf` |
+| Word | `.docx` |
+| Plain text | `.txt` |
+| Markdown | `.md`, `.markdown` |
+
+## Project Structure
+
+```
+app.py                  # FastAPI application
+src/
+  topic_research.py     # Web research pipeline + TopicResearchBrief dataclass
+  llm_enrichment.py     # Anthropic Claude integration
+  slide_deck_generator.py  # python-pptx deck builder
+  document_generator.py    # Self-contained HTML generator
+  course_parser.py      # Uploaded file ingestion
+static/
+  index.html            # Single-page UI
+  style.css             # Notion-inspired design system
+  app.js                # Frontend logic (polling, file upload, form handling)
+output/                 # Generated artifacts (gitignored)
+uploads/                # Uploaded context files (gitignored)
+```
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/generate` | Start a generation job |
+| `GET` | `/api/status/{job_id}` | Poll job status |
+| `GET` | `/api/download/{job_id}` | Download completed artifact |
+| `GET` | `/` | Serve the web UI |
