@@ -39,6 +39,23 @@ app = FastAPI(title="Research Studio")
 
 # ── API routes (must be defined before static mount) ─────────────────────────
 
+@app.get("/api/health")
+async def health():
+    import os
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    try:
+        import anthropic as _a
+        sdk_version = _a.__version__
+    except Exception:
+        sdk_version = "not installed"
+    return {
+        "status": "ok",
+        "anthropic_sdk": sdk_version,
+        "api_key_set": bool(api_key),
+        "api_key_prefix": (api_key[:8] + "...") if api_key else None,
+    }
+
+
 @app.post("/api/generate")
 async def generate(
     background_tasks: BackgroundTasks,

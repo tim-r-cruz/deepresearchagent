@@ -41,26 +41,35 @@ def enrich_with_llm(
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
+        import sys
+        print("[llm_enrichment] ANTHROPIC_API_KEY not set — skipping LLM", file=sys.stderr, flush=True)
         return None
+
+    import sys
+    print(f"[llm_enrichment] calling {MODEL} for topic={topic!r} questions={len(guiding_questions)}", file=sys.stderr, flush=True)
 
     client = _anthropic_module.Anthropic(api_key=api_key)
     prompt = _build_prompt(topic, guiding_questions, context_snippets, course_text)
 
-    import sys
     try:
         message = client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
             messages=[{"role": "user", "content": prompt}],
         )
+        print(f"[llm_enrichment] response received stop_reason={message.stop_reason} tokens={message.usage.output_tokens}", file=sys.stderr, flush=True)
         raw = message.content[0].text.strip()
         json_str = _extract_json(raw)
         if json_str:
             data = json.loads(json_str)
-            return _validate_and_normalise(data)
-        print("[llm_enrichment] WARNING: could not extract JSON from response", file=sys.stderr)
+            result = _validate_and_normalise(data)
+            print(f"[llm_enrichment] parsed OK gqr={len(result.get('guiding_question_responses', []))}", file=sys.stderr, flush=True)
+            return result
+        print("[llm_enrichment] WARNING: could not extract JSON from response", file=sys.stderr, flush=True)
     except Exception as exc:
-        print(f"[llm_enrichment] ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
+        import traceback
+        print(f"[llm_enrichment] ERROR: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         return None
 
     return None
