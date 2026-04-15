@@ -161,7 +161,7 @@ class SlideDeckGenerator:
         )
         self._attach_notes(slide, notes)
 
-    def add_section_slide(self, title: str, bullets: List[str]):
+    def add_section_slide(self, title: str, bullets: List[str], notes_text: Optional[str] = None):
         """Add a content slide. Section-header titles get a distinctive look."""
         clean = [b.strip() for b in bullets if b and b.strip()]
         slide_type = self._infer_slide_type(title)
@@ -169,7 +169,7 @@ class SlideDeckGenerator:
         if slide_type in ("section-divider",) or re.match(r"^Part \d+", title):
             self._build_section_divider(title, clean)
         else:
-            self._build_content_slide(title, clean, slide_type)
+            self._build_content_slide(title, clean, slide_type, notes_text=notes_text)
 
     def _build_section_divider(self, title: str, bullets: List[str]):
         slide = self._new_slide()
@@ -190,7 +190,8 @@ class SlideDeckGenerator:
         notes = self._build_speaker_notes(title, bullets, "generic")
         self._attach_notes(slide, notes)
 
-    def _build_content_slide(self, title: str, bullets: List[str], slide_type: str):
+    def _build_content_slide(self, title: str, bullets: List[str], slide_type: str,
+                             notes_text: Optional[str] = None):
         slide = self._new_slide()
 
         # Title
@@ -216,7 +217,7 @@ class SlideDeckGenerator:
         self._set_para(tf3.paragraphs[0], "Research Studio",
                        FONT_BODY, 9, C_SUBTLE)
 
-        notes = self._build_speaker_notes(title, bullets, slide_type)
+        notes = notes_text if notes_text else self._build_speaker_notes(title, bullets, slide_type)
         self._attach_notes(slide, notes)
 
     # ── Slide type inference ─────────────────────────────────────────────────
@@ -342,10 +343,11 @@ class SlideDeckGenerator:
         # ── Title ────────────────────────────────────────────────────────────
         self.add_title_slide(topic, author)
 
-        # ── Overview: first few sentences of summary as bullets ───────────────
+        # ── Overview: bullets on slide, full summary prose in notes ──────────
         summary_bullets = self._prose_to_bullets(research_brief.summary, max_bullets=4)
         if summary_bullets:
-            self.add_section_slide("Overview", summary_bullets)
+            self.add_section_slide("Overview", summary_bullets,
+                                   notes_text=research_brief.summary)
 
         # ── Research Findings: one slide per guiding question ─────────────────
         gqr = getattr(research_brief, "guiding_question_responses", [])
