@@ -109,22 +109,27 @@ class SlideDeckGenerator:
     def _attach_notes(self, slide, notes_text: str):
         slide.notes_slide.notes_text_frame.text = notes_text
 
-    def _trim(self, text: str, max_len: int = 140) -> str:
+    def _trim(self, text: str, max_len: int = 240) -> str:
         text = text.strip()
-        return text if len(text) <= max_len else text[:max_len - 1].rstrip() + "…"
+        if len(text) <= max_len:
+            return text
+        cut = text[:max_len].rsplit(' ', 1)[0].rstrip('.,;:')
+        return cut + "…"
 
-    def _prose_to_bullets(self, text: str, max_bullets: int = 5) -> List[str]:
-        """Pull the first sentence from each paragraph to form concise bullets."""
+    def _prose_to_bullets(self, text: str, max_bullets: int = 6) -> List[str]:
+        """Split prose into individual sentences, one per bullet point."""
         bullets = []
         for para in text.split("\n\n"):
             para = para.strip()
             if not para:
                 continue
-            match = re.search(r'^(.+?[.!?])(?:\s|$)', para)
-            sentence = match.group(1).strip() if match else para
-            bullets.append(self._trim(sentence, 140))
-            if len(bullets) >= max_bullets:
-                break
+            sentences = re.split(r'(?<=[.!?])\s+', para)
+            for s in sentences:
+                s = s.strip()
+                if s:
+                    bullets.append(self._trim(s))
+                if len(bullets) >= max_bullets:
+                    return bullets
         return bullets
 
     # ── Public slide builders ────────────────────────────────────────────────
@@ -204,10 +209,10 @@ class SlideDeckGenerator:
             BODY_T = Inches(1.6)
             BODY_H = H - BODY_T - Inches(0.55)
             tf2 = self._txb(slide, MARGIN_L, BODY_T, CONTENT_W, BODY_H)
-            self._set_para(tf2.paragraphs[0], bullets[0], FONT_BODY, 17, C_TEXT)
+            self._set_para(tf2.paragraphs[0], f"• {bullets[0]}", FONT_BODY, 14, C_TEXT)
             for bullet in bullets[1:]:
-                self._add_para(tf2, bullet, FONT_BODY, 17, C_TEXT,
-                               space_before=9)
+                self._add_para(tf2, f"• {bullet}", FONT_BODY, 14, C_TEXT,
+                               space_before=6)
 
         # Subtle bottom bar
         self._rect(slide, Inches(0), H - Inches(0.38), W, Inches(0.38), C_SURFACE)
@@ -297,9 +302,9 @@ class SlideDeckGenerator:
         BODY_T = Inches(1.72)
         BODY_H = H - BODY_T - Inches(0.55)
         tf2 = self._txb(slide, MARGIN_L, BODY_T, CONTENT_W, BODY_H)
-        self._set_para(tf2.paragraphs[0], f"• {bullets[0]}", FONT_BODY, 17, C_TEXT)
+        self._set_para(tf2.paragraphs[0], f"• {bullets[0]}", FONT_BODY, 14, C_TEXT)
         for b in bullets[1:]:
-            self._add_para(tf2, f"• {b}", FONT_BODY, 17, C_TEXT, space_before=10)
+            self._add_para(tf2, f"• {b}", FONT_BODY, 14, C_TEXT, space_before=6)
 
         # Bottom bar
         self._rect(slide, Inches(0), H - Inches(0.38), W, Inches(0.38), C_SURFACE)
