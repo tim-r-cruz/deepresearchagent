@@ -137,12 +137,15 @@ def _build_prompt(
     if has_questions:
         lines += [
             "guiding_question_responses (array of objects)",
-            "  One object per guiding question listed above. Each object has two string keys:",
+            "  One object per guiding question listed above. Each object has three keys:",
             '    "question": copy the guiding question verbatim',
             '    "response": write a thorough expert answer of 2–4 paragraphs (separated by \\n\\n).',
             "      Cite specific evidence, named studies, mechanisms, or data.",
             "      Do NOT restate or paraphrase the question — just answer it deeply.",
-            "      This must be the most substantial field in the output.",
+            "      This is the detailed prose version used in written reports.",
+            '    "bullets": an array of 4–6 strings. Each string is one concise sentence under 20 words',
+            "      that summarises a distinct key point from the response.",
+            "      Write each bullet as a complete standalone statement — no bullet symbols, no numbering.",
             "",
         ]
     else:
@@ -265,8 +268,11 @@ def _validate_and_normalise(data: Dict) -> Dict:
             if isinstance(item, dict):
                 q = str(item.get("question") or "").strip()
                 r = str(item.get("response") or "").strip()
+                raw_bullets = item.get("bullets") or []
+                bullets = [str(b).strip() for b in raw_bullets
+                           if isinstance(b, str) and str(b).strip()] if isinstance(raw_bullets, list) else []
                 if q and r:
-                    gqr.append({"question": q, "response": r})
+                    gqr.append({"question": q, "response": r, "bullets": bullets})
 
     return {
         "summary": _ensure_str(

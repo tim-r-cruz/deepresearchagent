@@ -279,8 +279,8 @@ class SlideDeckGenerator:
         ]
         self.add_section_slide(f"Module {idx} Discussion Lab", discussion_bullets)
 
-    def add_guiding_question_slide(self, question: str, response: str):
-        """One slide per guiding question — key points as bullets, full prose in notes."""
+    def add_guiding_question_slide(self, question: str, response: str, bullets: Optional[List[str]] = None):
+        """One slide per guiding question — concise bullets on slide, full prose in notes."""
         slide = self._new_slide()
 
         # Question as title
@@ -290,10 +290,10 @@ class SlideDeckGenerator:
         # Thin accent divider
         self._rect(slide, MARGIN_L, Inches(1.58), CONTENT_W, Pt(2), C_ACCENT)
 
-        # Convert prose response to concise bullet points
-        bullets = self._prose_to_bullets(response, max_bullets=5)
+        # Use LLM-generated concise bullets if available, else extract from prose
+        bullets = bullets or self._prose_to_bullets(response, max_bullets=6)
         if not bullets:
-            bullets = [self._trim(response, 140)]
+            bullets = [self._trim(response)]
 
         BODY_T = Inches(1.72)
         BODY_H = H - BODY_T - Inches(0.55)
@@ -358,6 +358,7 @@ class SlideDeckGenerator:
                 self.add_guiding_question_slide(
                     question=item.get("question", ""),
                     response=item.get("response", ""),
+                    bullets=item.get("bullets") or None,
                 )
 
         # ── Key insights from talking points ──────────────────────────────────
