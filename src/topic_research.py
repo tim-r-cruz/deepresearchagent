@@ -55,6 +55,7 @@ class TopicResearchBrief:
     citation_confidence: str = "Low"
     guiding_questions: List[str] = field(default_factory=list)
     guiding_question_responses: List[Dict] = field(default_factory=list)
+    llm_enriched: bool = False
 
 
 def research_topics(
@@ -121,9 +122,12 @@ def _research_single_topic(
                 citation_confidence="Low",
                 guiding_questions=guiding_questions or [],
                 guiding_question_responses=llm_data.get("guiding_question_responses", []),
+                llm_enriched=True,
             )
 
         # Final fallback — pure templates
+        import sys
+        print(f"[topic_research] WARNING: LLM unavailable for {topic!r} — using templates", file=sys.stderr, flush=True)
         fallback_summary = (
             f"No external references were retrieved for {topic}. "
             f"Use this module to frame key definitions, methods, and applied examples for {topic}."
@@ -203,9 +207,12 @@ def _research_single_topic(
             citation_confidence=confidence,
             guiding_questions=guiding_questions or [],
             guiding_question_responses=llm_data.get("guiding_question_responses", []),
+            llm_enriched=True,
         )
 
     # ── Fallback: template-based generation ───────────────────────────────────
+    import sys
+    print(f"[topic_research] WARNING: LLM unavailable for {topic!r} — using templates", file=sys.stderr, flush=True)
     aggregate_summary = _build_aggregate_summary(topic, citations)
     talking_points = _build_talking_points(topic, aggregate_summary)
     discussion_questions = _build_discussion_questions(topic, aggregate_summary, guiding_questions)

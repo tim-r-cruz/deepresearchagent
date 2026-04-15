@@ -26,52 +26,55 @@ def enrich_with_llm(
     """
     Call Anthropic Claude to generate an enriched research brief.
 
-    Parameters
-    ----------
-    topic:              The research subject.
-    guiding_questions:  User-supplied questions that should shape the research.
-    context_snippets:   Raw text snippets from Wikipedia / DuckDuckGo.
-    course_text:        Optional combined text from uploaded course files.
-
     Returns a dict whose keys map to ``TopicResearchBrief`` fields,
-    or ``None`` when the SDK is unavailable or the API call fails.
+    or ``None`` when the SDK is unavailable or the API call fails after retries.
     """
+    import sys
+
     if not _ANTHROPIC_AVAILABLE:
+        print("[llm_enrichment] anthropic SDK not installed — skipping LLM", file=sys.stderr, flush=True)
         return None
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        import sys
         print("[llm_enrichment] ANTHROPIC_API_KEY not set — skipping LLM", file=sys.stderr, flush=True)
         return None
-
-    import sys
-    print(f"[llm_enrichment] calling {MODEL} for topic={topic!r} questions={len(guiding_questions)}", file=sys.stderr, flush=True)
 
     client = _anthropic_module.Anthropic(api_key=api_key)
     prompt = _build_prompt(topic, guiding_questions, context_snippets, course_text)
 
-    try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        print(f"[llm_enrichment] response received stop_reason={message.stop_reason} tokens={message.usage.output_tokens}", file=sys.stderr, flush=True)
-        raw = message.content[0].text.strip()
-        json_str = _extract_json(raw)
-        if json_str:
-            data = json.loads(json_str)
-            result = _validate_and_normalise(data)
-            print(f"[llm_enrichment] parsed OK gqr={len(result.get('guiding_question_responses', []))}", file=sys.stderr, flush=True)
-            return result
-        print("[llm_enrichment] WARNING: could not extract JSON from response", file=sys.stderr, flush=True)
-    except Exception as exc:
-        import traceback
-        print(f"[llm_enrichment] ERROR: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
-        traceback.print_exc(file=sys.stderr)
-        return None
+    for attempt in range(1, 3):  # try up to twice
+        print(f"[llm_enrichment] attempt {attempt}: calling {MODEL} topic={topic!r}", file=sys.stderr, flush=True)
+        try:
+            message = client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            print(f"[llm_enrichment] attempt {attempt}: stop_reason={message.stop_reason} tokens={message.usage.output_tokens}", file=sys.stderr, flush=True)
 
+            raw = message.content[0].text.strip()
+            json_str = _extract_json(raw)
+            if not json_str:
+                print(f"[llm_enrichment] attempt {attempt}: could not extract JSON — retrying", file=sys.stderr, flush=True)
+                continue
+
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"[llm_enrichment] attempt {attempt}: JSON parse error at pos {e.pos}: {e.msg} — retrying", file=sys.stderr, flush=True)
+                continue
+
+            result = _validate_and_normalise(data)
+            print(f"[llm_enrichment] attempt {attempt}: OK gqr={len(result.get('guiding_question_responses', []))}", file=sys.stderr, flush=True)
+            return result
+
+        except Exception as exc:
+            import traceback
+            print(f"[llm_enrichment] attempt {attempt}: ERROR {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+
+    print("[llm_enrichment] all attempts failed — falling back to templates", file=sys.stderr, flush=True)
     return None
 
 
