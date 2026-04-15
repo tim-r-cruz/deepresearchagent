@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import re
@@ -76,17 +77,19 @@ def _research_single_topic(
     wikipedia_url = WIKIPEDIA_SUMMARY_URL.format(topic=encoded_topic)
     citations: List[Citation] = []
 
-    try:
-        wikipedia_citation = _fetch_wikipedia_citation(topic)
-        if wikipedia_citation:
-            citations.append(wikipedia_citation)
-    except requests.RequestException:
-        pass
-
-    try:
-        citations.extend(_fetch_duckduckgo_citations(topic))
-    except requests.RequestException:
-        pass
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        wiki_future = executor.submit(_fetch_wikipedia_citation, topic)
+        ddg_future  = executor.submit(_fetch_duckduckgo_citations, topic)
+        try:
+            result = wiki_future.result()
+            if result:
+                citations.append(result)
+        except Exception:
+            pass
+        try:
+            citations.extend(ddg_future.result())
+        except Exception:
+            pass
 
     local_citations = _build_local_citations(topic=topic, course_content=course_content)
     citations.extend(local_citations)

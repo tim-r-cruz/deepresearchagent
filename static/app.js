@@ -152,7 +152,7 @@ function beginPolling(jobId) {
 
   pollTimer = setInterval(async () => {
     tick++;
-    const msgIdx = Math.min(Math.floor(tick / 3), messages.length - 1);
+    const msgIdx = Math.min(Math.floor(tick / 2), messages.length - 1);
     setText('status-text', messages[msgIdx]);
 
     try {
@@ -170,7 +170,7 @@ function beginPolling(jobId) {
       clearInterval(pollTimer);
       showError('Lost connection to server.');
     }
-  }, 2000);
+  }, 5000);
 }
 
 function showResult(jobId, filename) {
