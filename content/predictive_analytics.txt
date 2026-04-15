@@ -1,1 +1,0 @@
-Predictive analytics uses historical data to forecast future outcomes. It combines statistics, machine learning, and business acumen.
