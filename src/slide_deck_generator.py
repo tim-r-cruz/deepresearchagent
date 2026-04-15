@@ -109,12 +109,8 @@ class SlideDeckGenerator:
     def _attach_notes(self, slide, notes_text: str):
         slide.notes_slide.notes_text_frame.text = notes_text
 
-    def _trim(self, text: str, max_len: int = 240) -> str:
-        text = text.strip()
-        if len(text) <= max_len:
-            return text
-        cut = text[:max_len].rsplit(' ', 1)[0].rstrip('.,;:')
-        return cut + "…"
+    def _trim(self, text: str) -> str:
+        return text.strip()
 
     def _prose_to_bullets(self, text: str, max_bullets: int = 6) -> List[str]:
         """Split prose into individual sentences, one per bullet point."""
