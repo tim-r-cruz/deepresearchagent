@@ -14,7 +14,7 @@ except ImportError:
     _ANTHROPIC_AVAILABLE = False
 
 MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 8192
+MAX_TOKENS = 1000000
 
 
 def enrich_with_llm(
