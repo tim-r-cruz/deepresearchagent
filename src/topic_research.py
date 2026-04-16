@@ -149,7 +149,6 @@ def _research_single_topic(
             )
 
         # Final fallback — pure templates
-        import sys
         print(f"[topic_research] WARNING: LLM unavailable for {topic!r} — using templates", file=sys.stderr, flush=True)
         fallback_summary = (
             f"No external references were retrieved for {topic}. "
@@ -234,7 +233,6 @@ def _research_single_topic(
         )
 
     # ── Fallback: template-based generation ───────────────────────────────────
-    import sys
     print(f"[topic_research] WARNING: LLM unavailable for {topic!r} — using templates", file=sys.stderr, flush=True)
     aggregate_summary = _build_aggregate_summary(topic, citations)
     talking_points = _build_talking_points(topic, aggregate_summary)
