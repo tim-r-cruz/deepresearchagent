@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
+import sys
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import re
@@ -15,7 +17,9 @@ from src.llm_enrichment import enrich_with_llm
 WIKIPEDIA_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{topic}"
 WIKIPEDIA_SEARCH_URL = "https://en.wikipedia.org/w/api.php"
 DUCKDUCKGO_INSTANT_ANSWER_URL = "https://api.duckduckgo.com/"
+TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 REQUEST_TIMEOUT_SECONDS = 8
+TAVILY_TIMEOUT_SECONDS = 20  # advanced search takes longer
 REQUEST_HEADERS = {
     "User-Agent": "CourseDeckAgent/1.0 (educational workflow)",
     "Accept": "application/json",
@@ -78,19 +82,38 @@ def _research_single_topic(
     wikipedia_url = WIKIPEDIA_SUMMARY_URL.format(topic=encoded_topic)
     citations: List[Citation] = []
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        wiki_future = executor.submit(_fetch_wikipedia_citation, topic)
-        ddg_future  = executor.submit(_fetch_duckduckgo_citations, topic)
-        try:
-            result = wiki_future.result()
-            if result:
-                citations.append(result)
-        except Exception:
-            pass
-        try:
-            citations.extend(ddg_future.result())
-        except Exception:
-            pass
+    use_tavily = bool(os.environ.get("TAVILY_API_KEY"))
+
+    if use_tavily:
+        print(f"[topic_research] Using Tavily + Wikipedia for {topic!r}", file=sys.stderr, flush=True)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            tavily_future = executor.submit(_fetch_tavily_citations, topic)
+            wiki_future   = executor.submit(_fetch_wikipedia_citation, topic)
+            try:
+                citations.extend(tavily_future.result())
+            except Exception as exc:
+                print(f"[topic_research] Tavily fetch failed: {exc}", file=sys.stderr, flush=True)
+            try:
+                result = wiki_future.result()
+                if result:
+                    citations.append(result)
+            except Exception:
+                pass
+    else:
+        print(f"[topic_research] TAVILY_API_KEY not set — using Wikipedia + DuckDuckGo for {topic!r}", file=sys.stderr, flush=True)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            wiki_future = executor.submit(_fetch_wikipedia_citation, topic)
+            ddg_future  = executor.submit(_fetch_duckduckgo_citations, topic)
+            try:
+                result = wiki_future.result()
+                if result:
+                    citations.append(result)
+            except Exception:
+                pass
+            try:
+                citations.extend(ddg_future.result())
+            except Exception:
+                pass
 
     local_citations = _build_local_citations(topic=topic, course_content=course_content)
     citations.extend(local_citations)
@@ -240,6 +263,62 @@ def _research_single_topic(
         citation_confidence=confidence,
         guiding_questions=guiding_questions or [],
     )
+
+
+def _fetch_tavily_citations(topic: str) -> List[Citation]:
+    """Call Tavily Search API for rich, AI-optimised web results."""
+    api_key = os.environ.get("TAVILY_API_KEY")
+    if not api_key:
+        return []
+
+    try:
+        response = requests.post(
+            TAVILY_SEARCH_URL,
+            json={
+                "api_key": api_key,
+                "query": topic,
+                "search_depth": "advanced",
+                "max_results": 5,
+                "include_answer": True,
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=TAVILY_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        print(f"[topic_research] Tavily request error: {exc}", file=sys.stderr, flush=True)
+        return []
+
+    citations: List[Citation] = []
+
+    # Tavily's synthesised answer is a high-quality context snippet
+    answer = (payload.get("answer") or "").strip()
+    if answer:
+        citations.append(_build_citation(
+            topic=topic,
+            title=f"Tavily synthesis: {topic}",
+            url="https://tavily.com",
+            snippet=answer,
+            source="tavily-answer",
+        ))
+
+    for result in (payload.get("results") or []):
+        title   = (result.get("title") or "").strip()
+        url     = (result.get("url") or "").strip()
+        content = (result.get("content") or "").strip()
+        if not content or not url:
+            continue
+        citations.append(_build_citation(
+            topic=topic,
+            title=title or url,
+            url=url,
+            snippet=content,
+            source="tavily",
+        ))
+
+    print(f"[topic_research] Tavily returned {len(citations)} citations for {topic!r}", file=sys.stderr, flush=True)
+    return citations
 
 
 def _fetch_wikipedia_citation(topic: str) -> Citation | None:
@@ -522,6 +601,10 @@ def _calculate_source_score(citations: List[Citation]) -> float:
 
 
 def _score_reliability(url: str, source: str) -> float:
+    if source == "tavily-answer":
+        return 0.90  # synthesised from multiple sources
+    if source == "tavily":
+        return 0.82
     if source == "wikipedia":
         return 0.85
     if source == "local-course":
