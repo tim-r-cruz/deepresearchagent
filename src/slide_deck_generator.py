@@ -11,18 +11,19 @@ from pptx.enum.text import PP_ALIGN
 
 from .topic_research import TopicResearchBrief
 
-# ── Colour palette (Notion-inspired) ────────────────────────────────────────
+# ── Colour palette ───────────────────────────────────────────────────────────
 C_WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
-C_SURFACE = RGBColor(0xF7, 0xF7, 0xF5)
-C_TEXT    = RGBColor(0x37, 0x35, 0x2F)
-C_SUBTLE  = RGBColor(0x78, 0x77, 0x74)
-C_ACCENT  = RGBColor(0x23, 0x83, 0xE2)
-C_DIVIDER = RGBColor(0xE9, 0xE9, 0xE7)
-C_GREEN   = RGBColor(0x0F, 0x7B, 0x6C)
+C_DARK    = RGBColor(0x1C, 0x1C, 0x2E)  # dark navy — section divider backgrounds
+C_SURFACE = RGBColor(0xF5, 0xF4, 0xF1)  # warm off-white surface
+C_TEXT    = RGBColor(0x1F, 0x1F, 0x1F)  # near-black body text
+C_SUBTLE  = RGBColor(0x78, 0x77, 0x74)  # muted grey labels
+C_ACCENT  = RGBColor(0x23, 0x83, 0xE2)  # primary blue
+C_TEAL    = RGBColor(0x0D, 0x94, 0x88)  # teal — guiding-question slides
+C_DIVIDER = RGBColor(0xE8, 0xE7, 0xE4)  # hairline dividers
 
-# ── Typography ───────────────────────────────────────────────────────────────
-FONT_HEADING = "Calibri Light"
-FONT_BODY    = "Calibri"
+# ── Typography  (Futura; falls back to Century Gothic / sans-serif) ──────────
+FONT_HEADING = "Futura"
+FONT_BODY    = "Futura"
 
 # ── Layout constants (13.33 × 7.5 in, standard widescreen) ──────────────────
 W         = Inches(13.33)
@@ -133,24 +134,33 @@ class SlideDeckGenerator:
     def add_title_slide(self, course_title: str, author: str = "Course Agent"):
         slide = self._new_slide()
 
-        # Thin accent strip at top
-        self._rect(slide, Inches(0), Inches(0), W, Inches(0.05), C_ACCENT)
+        # Left accent spine — full-height bar
+        SPINE_W = Inches(0.42)
+        self._rect(slide, Inches(0), Inches(0), SPINE_W, H, C_ACCENT)
 
-        # Topic title — large, left-aligned
-        tf = self._txb(slide, MARGIN_L, Inches(2.2), CONTENT_W, Inches(2.0))
+        # Decorative surface block — bottom-right corner
+        self._rect(slide, W - Inches(4.8), H - Inches(2.0), Inches(4.8), Inches(2.0), C_SURFACE)
+
+        # Small accent dot — sits between spine and title area, vertically centred
+        DOT = Inches(0.10)
+        self._rect(slide, SPINE_W + Inches(0.18), Inches(2.05), DOT, DOT, C_ACCENT)
+
+        # Title
+        TITLE_L = SPINE_W + Inches(0.38)
+        TITLE_W = W - TITLE_L - Inches(0.5)
+        tf = self._txb(slide, TITLE_L, Inches(2.2), TITLE_W, Inches(2.0))
         self._set_para(tf.paragraphs[0], course_title,
                        FONT_HEADING, 38, C_TEXT, bold=False)
 
-        # Author / subtitle
-        tf2 = self._txb(slide, MARGIN_L, Inches(4.4), CONTENT_W, Inches(0.7))
+        # Author
+        tf2 = self._txb(slide, TITLE_L, Inches(4.45), TITLE_W, Inches(0.7))
         self._set_para(tf2.paragraphs[0], f"Prepared by {author}",
-                       FONT_BODY, 16, C_SUBTLE)
+                       FONT_BODY, 15, C_SUBTLE)
 
-        # Bottom bar
-        self._rect(slide, Inches(0), H - Inches(0.48), W, Inches(0.48), C_SURFACE)
-        tf3 = self._txb(slide, MARGIN_L, H - Inches(0.44), CONTENT_W, Inches(0.38))
-        self._set_para(tf3.paragraphs[0], "Research Studio",
-                       FONT_BODY, 10, C_SUBTLE)
+        # Bottom bar (starts after spine)
+        self._rect(slide, SPINE_W, H - Inches(0.48), W - SPINE_W, Inches(0.48), C_SURFACE)
+        tf3 = self._txb(slide, TITLE_L, H - Inches(0.44), TITLE_W, Inches(0.38))
+        self._set_para(tf3.paragraphs[0], "Research Studio", FONT_BODY, 10, C_SUBTLE)
 
         notes = self._build_speaker_notes(
             title=course_title,
@@ -173,49 +183,64 @@ class SlideDeckGenerator:
 
     def _build_section_divider(self, title: str, bullets: List[str]):
         slide = self._new_slide()
-        self._set_bg(slide, C_SURFACE)
+        self._set_bg(slide, C_DARK)
 
-        # Short accent bar
-        self._rect(slide, MARGIN_L, Inches(3.1), Inches(0.45), Pt(3), C_ACCENT)
+        # Accent right-edge strip
+        self._rect(slide, W - Inches(0.42), Inches(0), Inches(0.42), H, C_ACCENT)
 
-        # Section title — large, left-aligned
-        tf = self._txb(slide, MARGIN_L, Inches(3.2), CONTENT_W, Inches(1.8))
-        self._set_para(tf.paragraphs[0], title, FONT_HEADING, 32, C_TEXT)
+        # Subtle horizontal rule above title
+        self._rect(slide, MARGIN_L, Inches(2.85), Inches(1.6), Pt(2),
+                   RGBColor(0x4A, 0x4A, 0x6A))
 
-        # Optional first bullet as a brief descriptor
+        # Section title — large, white
+        tf = self._txb(slide, MARGIN_L, Inches(3.0), CONTENT_W - Inches(0.6), Inches(2.0))
+        self._set_para(tf.paragraphs[0], title, FONT_HEADING, 34, C_WHITE)
+
+        # Optional first bullet as a light descriptor
         if bullets:
-            tf2 = self._txb(slide, MARGIN_L, Inches(4.9), CONTENT_W, Inches(0.8))
-            self._set_para(tf2.paragraphs[0], bullets[0], FONT_BODY, 16, C_SUBTLE)
+            tf2 = self._txb(slide, MARGIN_L, Inches(4.75), CONTENT_W - Inches(0.6), Inches(0.8))
+            self._set_para(tf2.paragraphs[0], bullets[0], FONT_BODY, 15,
+                           RGBColor(0x9A, 0x99, 0x96))
 
         notes = self._build_speaker_notes(title, bullets, "generic")
         self._attach_notes(slide, notes)
 
     def _build_content_slide(self, title: str, bullets: List[str], slide_type: str,
-                             notes_text: Optional[str] = None):
+                             notes_text: Optional[str] = None,
+                             accent_color: Optional[RGBColor] = None):
         slide = self._new_slide()
+        color = accent_color or C_ACCENT
+
+        # Thin top accent strip
+        self._rect(slide, Inches(0), Inches(0), W, Inches(0.07), color)
+
+        # Left-margin tick mark aligned with title
+        self._rect(slide, Inches(0.38), MARGIN_T + Inches(0.04), Inches(0.07), Inches(0.72), color)
 
         # Title
         tf = self._txb(slide, MARGIN_L, MARGIN_T, CONTENT_W, Inches(0.85))
         self._set_para(tf.paragraphs[0], title, FONT_HEADING, 24, C_TEXT)
 
-        # Thin divider under title
-        self._rect(slide, MARGIN_L, Inches(1.42), CONTENT_W, Pt(1), C_DIVIDER)
+        # Hairline divider under title
+        self._rect(slide, MARGIN_L, Inches(1.45), CONTENT_W, Pt(1), C_DIVIDER)
 
         # Body
         if bullets:
-            BODY_T = Inches(1.6)
-            BODY_H = H - BODY_T - Inches(0.55)
+            BODY_T = Inches(1.62)
+            BODY_H = H - BODY_T - Inches(0.5)
             tf2 = self._txb(slide, MARGIN_L, BODY_T, CONTENT_W, BODY_H)
             self._set_para(tf2.paragraphs[0], f"• {bullets[0]}", FONT_BODY, 14, C_TEXT)
             for bullet in bullets[1:]:
                 self._add_para(tf2, f"• {bullet}", FONT_BODY, 14, C_TEXT,
                                space_before=6)
 
-        # Subtle bottom bar
+        # Bottom bar with slide number
         self._rect(slide, Inches(0), H - Inches(0.38), W, Inches(0.38), C_SURFACE)
-        tf3 = self._txb(slide, MARGIN_L, H - Inches(0.35), CONTENT_W, Inches(0.3))
-        self._set_para(tf3.paragraphs[0], "Research Studio",
-                       FONT_BODY, 9, C_SUBTLE)
+        tf3 = self._txb(slide, MARGIN_L, H - Inches(0.35), CONTENT_W - Inches(1.0), Inches(0.3))
+        self._set_para(tf3.paragraphs[0], "Research Studio", FONT_BODY, 9, C_SUBTLE)
+        tf4 = self._txb(slide, W - Inches(1.3), H - Inches(0.35), Inches(1.0), Inches(0.3))
+        self._set_para(tf4.paragraphs[0], str(self._slide_num), FONT_BODY, 9, C_SUBTLE,
+                       align=PP_ALIGN.RIGHT)
 
         notes = notes_text if notes_text else self._build_speaker_notes(title, bullets, slide_type)
         self._attach_notes(slide, notes)
@@ -284,29 +309,38 @@ class SlideDeckGenerator:
         """One slide per guiding question — concise bullets on slide, full prose in notes."""
         slide = self._new_slide()
 
+        # Thin top accent strip (teal to distinguish from regular slides)
+        self._rect(slide, Inches(0), Inches(0), W, Inches(0.07), C_TEAL)
+
+        # Left-margin tick mark
+        self._rect(slide, Inches(0.38), MARGIN_T + Inches(0.04), Inches(0.07), Inches(1.0), C_TEAL)
+
         # Question as title
         tf = self._txb(slide, MARGIN_L, MARGIN_T, CONTENT_W, Inches(1.1))
         self._set_para(tf.paragraphs[0], question, FONT_HEADING, 20, C_TEXT)
 
-        # Thin accent divider
-        self._rect(slide, MARGIN_L, Inches(1.58), CONTENT_W, Pt(2), C_ACCENT)
+        # Teal accent divider under question
+        self._rect(slide, MARGIN_L, Inches(1.62), CONTENT_W, Pt(2), C_TEAL)
 
         # Use LLM-generated concise bullets if available, else extract from prose
         bullets = bullets or self._prose_to_bullets(response, max_bullets=6)
         if not bullets:
             bullets = [self._trim(response)]
 
-        BODY_T = Inches(1.72)
-        BODY_H = H - BODY_T - Inches(0.55)
+        BODY_T = Inches(1.78)
+        BODY_H = H - BODY_T - Inches(0.5)
         tf2 = self._txb(slide, MARGIN_L, BODY_T, CONTENT_W, BODY_H)
         self._set_para(tf2.paragraphs[0], f"• {bullets[0]}", FONT_BODY, 14, C_TEXT)
         for b in bullets[1:]:
             self._add_para(tf2, f"• {b}", FONT_BODY, 14, C_TEXT, space_before=6)
 
-        # Bottom bar
+        # Bottom bar with slide number
         self._rect(slide, Inches(0), H - Inches(0.38), W, Inches(0.38), C_SURFACE)
-        tf3 = self._txb(slide, MARGIN_L, H - Inches(0.35), CONTENT_W, Inches(0.3))
+        tf3 = self._txb(slide, MARGIN_L, H - Inches(0.35), CONTENT_W - Inches(1.0), Inches(0.3))
         self._set_para(tf3.paragraphs[0], "Research Studio", FONT_BODY, 9, C_SUBTLE)
+        tf4 = self._txb(slide, W - Inches(1.3), H - Inches(0.35), Inches(1.0), Inches(0.3))
+        self._set_para(tf4.paragraphs[0], str(self._slide_num), FONT_BODY, 9, C_SUBTLE,
+                       align=PP_ALIGN.RIGHT)
 
         # Full prose goes into speaker notes for presenter reference
         self._attach_notes(slide, f"Question: {question}\n\nFull answer:\n{response}")
