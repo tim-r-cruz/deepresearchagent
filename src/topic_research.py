@@ -66,10 +66,16 @@ def research_topics(
     topics: List[str],
     course_content: Optional[List[Dict]] = None,
     guiding_questions: Optional[List[str]] = None,
+    on_status=None,
 ) -> List[TopicResearchBrief]:
     briefs: List[TopicResearchBrief] = []
     for topic in topics:
-        briefs.append(_research_single_topic(topic, course_content=course_content, guiding_questions=guiding_questions))
+        briefs.append(_research_single_topic(
+            topic,
+            course_content=course_content,
+            guiding_questions=guiding_questions,
+            on_status=on_status,
+        ))
     return briefs
 
 
@@ -77,12 +83,16 @@ def _research_single_topic(
     topic: str,
     course_content: Optional[List[Dict]] = None,
     guiding_questions: Optional[List[str]] = None,
+    on_status=None,
 ) -> TopicResearchBrief:
     encoded_topic = quote(topic.replace(" ", "_"))
     wikipedia_url = WIKIPEDIA_SUMMARY_URL.format(topic=encoded_topic)
     citations: List[Citation] = []
 
     use_tavily = bool(os.environ.get("TAVILY_API_KEY"))
+
+    if on_status:
+        on_status("Searching the web…")
 
     if use_tavily:
         print(f"[topic_research] Using Tavily + Wikipedia for {topic!r}", file=sys.stderr, flush=True)
@@ -120,6 +130,8 @@ def _research_single_topic(
 
     if not citations:
         # Still try the LLM even without web citations
+        if on_status:
+            on_status("Running LLM enrichment…")
         course_text = _extract_course_text(course_content)
         llm_data = enrich_with_llm(
             topic=topic,
@@ -203,6 +215,8 @@ def _research_single_topic(
 
     # ── LLM enrichment ────────────────────────────────────────────────────────
     context_snippets = [c.snippet for c in citations if c.snippet]
+    if on_status:
+        on_status("Running LLM enrichment…")
     course_text = _extract_course_text(course_content)
     llm_data = enrich_with_llm(
         topic=topic,

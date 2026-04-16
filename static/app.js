@@ -140,24 +140,16 @@ async function startGeneration() {
 }
 
 function beginPolling(jobId) {
-  setText('status-text', 'Researching topic…');
-
-  let tick = 0;
-  const messages = [
-    'Researching topic…',
-    'Fetching sources…',
-    'Building research brief…',
-    'Generating artifact…',
-  ];
+  setText('status-text', 'Starting…');
 
   pollTimer = setInterval(async () => {
-    tick++;
-    const msgIdx = Math.min(Math.floor(tick / 2), messages.length - 1);
-    setText('status-text', messages[msgIdx]);
-
     try {
       const res  = await fetch(`/api/status/${jobId}`);
       const data = await res.json();
+
+      if (data.status_message) {
+        setText('status-text', data.status_message);
+      }
 
       if (data.status === 'complete') {
         clearInterval(pollTimer);

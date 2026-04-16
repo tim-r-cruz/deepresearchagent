@@ -123,6 +123,7 @@ async def generate(
 
     jobs[job_id] = {
         "status": "pending",
+        "status_message": "Starting…",
         "topic": topic,
         "output_type": output_type,
         "output_path": None,
@@ -151,6 +152,7 @@ async def get_status(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found.")
     return {
         "status": job["status"],
+        "status_message": job.get("status_message", ""),
         "topic": job.get("topic"),
         "filename": job.get("filename"),
         "error": job.get("error"),
@@ -186,6 +188,13 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # ── Background job ────────────────────────────────────────────────────────────
 
+def _update_status(job_id: str, message: str) -> None:
+    """Update the human-readable status message on the job (thread-safe for reads)."""
+    if job_id in jobs:
+        jobs[job_id]["status_message"] = message
+        _persist_job(job_id)
+
+
 async def _run_generation(
     job_id: str,
     topic: str,
@@ -195,11 +204,15 @@ async def _run_generation(
     upload_path: pathlib.Path,
 ):
     jobs[job_id]["status"] = "running"
+    jobs[job_id]["status_message"] = "Searching the web…"
     _persist_job(job_id)
     try:
+        on_status = lambda msg: _update_status(job_id, msg)
         brief = await asyncio.to_thread(
-            _sync_research, topic, guiding_questions, upload_path
+            _sync_research, topic, guiding_questions, upload_path, on_status
         )
+        artifact_label = "slides" if output_type == "slides" else "report"
+        _update_status(job_id, f"Building {artifact_label}…")
         output_path, filename = await asyncio.to_thread(
             _sync_generate, job_id, topic, brief, output_type, author
         )
@@ -213,10 +226,12 @@ async def _run_generation(
         _persist_job(job_id)
 
 
-def _sync_research(topic, guiding_questions, upload_path):
+def _sync_research(topic, guiding_questions, upload_path, on_status=None):
     """Blocking research call — runs in a thread pool."""
     course_content = None
     if upload_path.exists() and any(upload_path.iterdir()):
+        if on_status:
+            on_status("Loading uploaded files…")
         try:
             course_content = load_course_content(upload_path)
         except Exception:
@@ -226,6 +241,7 @@ def _sync_research(topic, guiding_questions, upload_path):
         [topic],
         course_content=course_content,
         guiding_questions=guiding_questions or None,
+        on_status=on_status,
     )
     return briefs[0]
 
