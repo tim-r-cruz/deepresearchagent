@@ -260,7 +260,7 @@ def _sync_generate(job_id, topic, brief, output_type, author):
         gen.build_research_deck(topic, brief, topic, author)
         gen.save()
     else:
-        filename = f"{safe_name}.html"
+        filename = f"{safe_name}.md"
         out_path = out_dir / filename
         gen = DocumentGenerator(out_path)
         gen.build(topic, brief, author)
