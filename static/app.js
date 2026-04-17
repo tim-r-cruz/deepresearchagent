@@ -172,9 +172,29 @@ function showResult(jobId, filename) {
   show('result-area');
   setText('result-filename', filename);
 
-  const link = document.getElementById('download-link');
-  link.href     = `/api/download/${jobId}`;
-  link.download = filename;
+  const btn = document.getElementById('download-link');
+  btn.onclick = (e) => {
+    e.preventDefault();
+    triggerDownload(jobId, filename);
+  };
+}
+
+async function triggerDownload(jobId, filename) {
+  try {
+    const res = await fetch(`/api/download/${jobId}`);
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    showError(`Download failed: ${err.message}`);
+  }
 }
 
 function showError(msg) {

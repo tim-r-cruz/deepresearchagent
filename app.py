@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from src.course_parser import load_course_content
@@ -169,10 +169,15 @@ async def download(job_id: str):
     output_path = pathlib.Path(job["output_path"])
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="Output file missing.")
-    return FileResponse(
-        path=str(output_path),
-        filename=job["filename"],
+    filename = job["filename"]
+    content  = output_path.read_bytes()
+    return Response(
+        content=content,
         media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(content)),
+        },
     )
 
 
